@@ -201,13 +201,13 @@ class RelationResolution(
     sessionQualifiedCandidateOrder(identifier).foreach { order =>
       val viewNameOnly = Seq(identifier.last)
       return order.iterator
-        .map[() => Option[LogicalPlan]] {
+        .map {
           case RelationResolution.TempViewCandidate =>
-            () => resolveTempView(viewNameOnly, u.isStreaming, finalTimeTravelSpec.isDefined)
+            resolveTempView(viewNameOnly, u.isStreaming, finalTimeTravelSpec.isDefined)
           case RelationResolution.PersistentCandidate =>
-            () => tryResolvePersistent(u, identifier, finalTimeTravelSpec)
+            tryResolvePersistent(u, identifier, finalTimeTravelSpec)
         }
-        .foldLeft(Option.empty[LogicalPlan])((resolved, candidate) => resolved.orElse(candidate()))
+        .collectFirst { case Some(plan) => plan }
     }
 
     // Multi-part (but not session-qualified): try temp view first (e.g. global_temp.tbl1), then

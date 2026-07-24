@@ -1323,13 +1323,11 @@ class Analyzer(
       relationResolution.sessionQualifiedCandidateOrder(identifier) match {
         case Some(order) =>
           order.iterator
-            .map[() => Option[LogicalPlan]] {
-              case RelationResolution.TempViewCandidate => () => tempViewCandidate
-              case RelationResolution.PersistentCandidate => () => persistentCandidate
+            .map {
+              case RelationResolution.TempViewCandidate => tempViewCandidate
+              case RelationResolution.PersistentCandidate => persistentCandidate
             }
-            .foldLeft(Option.empty[LogicalPlan]) {
-              (resolved, candidate) => resolved.orElse(candidate())
-            }
+            .collectFirst { case Some(plan) => plan }
         case None =>
           tempViewCandidate.orElse(persistentCandidate)
       }
