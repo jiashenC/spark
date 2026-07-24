@@ -1319,19 +1319,19 @@ class Analyzer(
           case _ => None
         }
       }
-      // Three-part `system.session.<name>` denotes a local temp view `name` only; it must never
-      // consult the persistent schema `session`, regardless of `PERSISTENT_CATALOG_FIRST`.
-      if (CatalogManager.isFullyQualifiedSystemSessionViewName(identifier)) {
-        tempViewCandidate
-      } else if (identifier.length == 2 &&
-          identifier.head.equalsIgnoreCase(CatalogManager.SESSION_NAMESPACE) &&
-          !conf.prioritizeSystemCatalog) {
-        // Two-part `session.<name>`: the name can denote either a local temp view `name` or a
-        // persistent relation `name` in schema `session`. Order follows
-        // `SQLConf.prioritizeSystemCatalog`.
-        persistentCandidate.orElse(tempViewCandidate)
-      } else {
-        tempViewCandidate.orElse(persistentCandidate)
+      // Map the shared session-qualified candidate order to DDL plans.
+      relationResolution.sessionQualifiedCandidateOrder(identifier) match {
+        case Some(order) =>
+          order.iterator
+            .map[() => Option[LogicalPlan]] {
+              case RelationResolution.TempViewCandidate => () => tempViewCandidate
+              case RelationResolution.PersistentCandidate => () => persistentCandidate
+            }
+            .foldLeft(Option.empty[LogicalPlan]) {
+              (resolved, candidate) => resolved.orElse(candidate())
+            }
+        case None =>
+          tempViewCandidate.orElse(persistentCandidate)
       }
     }
 
